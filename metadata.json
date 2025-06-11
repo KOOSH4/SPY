@@ -1,0 +1,6 @@
+{
+  "name": "Shadow Protocol",
+  "description": "A spy-themed deduction game where players try to identify the spy among them. Players receive a secret word or are identified as a spy, then a timer starts for discussion and deduction.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
