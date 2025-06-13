@@ -2,6 +2,7 @@ export enum Page {
   SETUP = 'SETUP',
   RULES = 'RULES',
   FAQ = 'FAQ',
+  WORD_LIST = 'WORD_LIST', // Added new page
   PLAYER_TRANSITION = 'PLAYER_TRANSITION',
   REVEAL_WORD = 'REVEAL_WORD',
   TIMER_COUNTDOWN = 'TIMER_COUNTDOWN',
@@ -19,6 +20,7 @@ export interface GameSettings {
   showCategoryToSpy: boolean;
   selectedCategories: string[]; // Changed from selectedCategory: string
   timerDuration: number; // in seconds
+  customWord?: string; // Added for custom word input
 }
 
 export interface ActiveGame {

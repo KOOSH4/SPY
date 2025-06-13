@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Page, GameSettings, ActiveGame, Player } from './types';
-import { WORD_CATEGORIES, EVERYTHING_CATEGORY_KEY, PLAYER_NAME_PREFIX } from './constants';
+import { WORD_CATEGORIES, EVERYTHING_CATEGORY_KEY, PLAYER_NAME_PREFIX, CUSTOM_CATEGORY_KEY } from './constants';
 import { Header } from './components/Header';
 import { SetupScreen } from './components/SetupScreen';
 import { PlayerTransitionScreen } from './components/PlayerTransitionScreen';
@@ -8,6 +8,7 @@ import { RevealWordScreen } from './components/RevealWordScreen';
 import { TimerCountdownScreen } from './components/TimerCountdownScreen';
 import { RulesScreen } from './components/RulesScreen';
 import { FaqScreen } from './components/FaqScreen';
+import { WordListScreen } from './components/WordListScreen'; // Added import
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>(Page.SETUP);
@@ -19,7 +20,6 @@ const App: React.FC = () => {
       players.push({ id: i, name: `${PLAYER_NAME_PREFIX} ${i + 1}`, isSpy: false });
     }
 
-    // Assign spies randomly
     let spiesAssigned = 0;
     while (spiesAssigned < settings.numSpies) {
       const randomIndex = Math.floor(Math.random() * settings.numPlayers);
@@ -29,39 +29,48 @@ const App: React.FC = () => {
       }
     }
 
-    let availableWords: { word: string, category: string }[] = [];
-    let finalSelectedCategories: string[];
+    let wordToUse: string;
+    let categoryToUse: string;
 
-    if (settings.selectedCategories.includes(EVERYTHING_CATEGORY_KEY)) {
-      finalSelectedCategories = Object.keys(WORD_CATEGORIES); // Use all defined categories
+    if (settings.customWord && settings.customWord.trim() !== '') {
+      wordToUse = settings.customWord.trim();
+      categoryToUse = CUSTOM_CATEGORY_KEY;
     } else {
-      finalSelectedCategories = settings.selectedCategories;
-    }
+      let availableWords: { word: string, category: string }[] = [];
+      let finalSelectedCategories: string[];
 
-    finalSelectedCategories.forEach(categoryKey => {
-      // Handle cases where EVERYTHING_CATEGORY_KEY might be passed here if logic changes
-      // or if WORD_CATEGORIES itself has an "Everything" key (which it doesn't by default from constants)
-      if (WORD_CATEGORIES[categoryKey]) { 
-        WORD_CATEGORIES[categoryKey].forEach(word => {
-          availableWords.push({ word, category: categoryKey });
-        });
+      if (settings.selectedCategories.includes(EVERYTHING_CATEGORY_KEY)) {
+        finalSelectedCategories = Object.keys(WORD_CATEGORIES); 
+      } else {
+        finalSelectedCategories = settings.selectedCategories;
       }
-    });
-    
-    if (availableWords.length === 0) {
-      // Fallback if somehow no words are available (e.g. empty category or only "Everything" was selected but no words for it)
-      console.error("No words available for selected categories. Defaulting...");
-      const defaultCategoryKey = Object.keys(WORD_CATEGORIES)[0]; // Get the first actual category
-      const defaultWords = WORD_CATEGORIES[defaultCategoryKey] || ["کلمه پیش‌فرض"];
-      availableWords.push({ word: defaultWords[0], category: defaultCategoryKey });
-    }
 
-    const randomWordWithCategory = availableWords[Math.floor(Math.random() * availableWords.length)];
+      finalSelectedCategories.forEach(categoryKey => {
+        if (WORD_CATEGORIES[categoryKey]) { 
+          WORD_CATEGORIES[categoryKey].forEach(word => {
+            availableWords.push({ word, category: categoryKey });
+          });
+        }
+      });
+      
+      if (availableWords.length === 0) {
+        // This case should ideally be prevented by validation in SetupScreen
+        console.error("No words available for selected categories. Defaulting...");
+        const defaultCategoryKey = Object.keys(WORD_CATEGORIES)[0] || "مکان‌ها";
+        const defaultWords = WORD_CATEGORIES[defaultCategoryKey] || ["کلمه پیش‌فرض"];
+        wordToUse = defaultWords[0];
+        categoryToUse = defaultCategoryKey;
+      } else {
+        const randomWordWithCategory = availableWords[Math.floor(Math.random() * availableWords.length)];
+        wordToUse = randomWordWithCategory.word;
+        categoryToUse = randomWordWithCategory.category;
+      }
+    }
 
     setActiveGame({
       players,
-      word: randomWordWithCategory.word,
-      category: randomWordWithCategory.category,
+      word: wordToUse,
+      category: categoryToUse,
       currentPlayerIndex: 0,
       gameSettings: settings,
     });
@@ -85,13 +94,14 @@ const App: React.FC = () => {
   }, [activeGame]);
   
   const handleTimerEnd = useCallback(() => {
+    // Future: Add logic for voting or game end summary.
     console.log("Timer ended, game discussion phase over.");
   }, []);
 
   const renderPage = () => {
     if (!activeGame && (currentPage === Page.PLAYER_TRANSITION || currentPage === Page.REVEAL_WORD || currentPage === Page.TIMER_COUNTDOWN)) {
         setCurrentPage(Page.SETUP);
-        setActiveGame(null); 
+        // setActiveGame(null); // Already null
         return <SetupScreen onStartGame={handleStartGame} />;
     }
 
@@ -102,6 +112,8 @@ const App: React.FC = () => {
         return <RulesScreen />;
       case Page.FAQ:
         return <FaqScreen />;
+      case Page.WORD_LIST: // Added case for WordListScreen
+        return <WordListScreen />;
       case Page.PLAYER_TRANSITION:
         if (activeGame) {
           return (
@@ -135,32 +147,44 @@ const App: React.FC = () => {
         }
         break; 
       default:
-        setCurrentPage(Page.SETUP); 
+        // setCurrentPage(Page.SETUP); // Avoid infinite loop if state is corrupted
         return <SetupScreen onStartGame={handleStartGame} />;
     }
-    // Fallback if activeGame was null for a game page
-    setCurrentPage(Page.SETUP);
+    // Fallback if activeGame was null for a game page, or unknown page
+    // This ensures UI always renders something, defaults to setup.
+    // This part is reached if a game page `break`s, meaning activeGame was null
+    // AND the initial guard `if (!activeGame && ...)` somehow didn't catch it or was bypassed.
+    // In this scenario, `currentPage` would be a game-specific page.
+    const nonGamePagesHandledBySwitchReturnOrRedirect: Page[] = [Page.SETUP, Page.RULES, Page.FAQ, Page.WORD_LIST];
+    if (!nonGamePagesHandledBySwitchReturnOrRedirect.includes(currentPage)) {
+      setCurrentPage(Page.SETUP);
+    }
     return <SetupScreen onStartGame={handleStartGame} />;
   };
   
+  // Effect to manage navigation and active game state.
+  // For instance, if user navigates away from game-specific pages back to SETUP,
+  // consider if activeGame should be cleared.
+  // Currently, navigating to SETUP does not clear activeGame, allowing game settings to persist
+  // if the user just peeks at rules/faq.
   useEffect(() => {
-    if (activeGame && (currentPage === Page.SETUP || currentPage === Page.RULES || currentPage === Page.FAQ)) {
-        if(currentPage === Page.SETUP && activeGame.currentPlayerIndex > 0) { 
-            // Consider if game state should be cleared when navigating back to setup mid-game
-            // setActiveGame(null); // Uncomment this if you want to reset game when navigating to setup
-        }
-    }
+    // Example: If navigating to SETUP and a game is "in progress" (e.g. past first player reveal)
+    // you might want to prompt or automatically clear activeGame.
+    // For now, this is kept simple.
+    // if (currentPage === Page.SETUP && activeGame && activeGame.currentPlayerIndex > 0) {
+    //   // setActiveGame(null); // Option to reset game if navigating back to setup mid-game
+    // }
   }, [currentPage, activeGame]);
 
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900">
+    <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
       <Header setCurrentPage={setCurrentPage} currentPage={currentPage} />
-      <main className="flex-grow">
+      <main className="flex-grow container mx-auto px-0 sm:px-4 py-4">
         {renderPage()}
       </main>
       <footer className="text-center p-4 text-sm text-slate-500 border-t border-slate-700">
-       SPY  🕵️ &copy; {new Date().getFullYear()} {/* Shadow Protocol */}
+       SPY  🕵️ &copy; {new Date().getFullYear()}
       </footer>
     </div>
   );

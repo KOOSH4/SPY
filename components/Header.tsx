@@ -9,9 +9,10 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage }) => {
   const navItems = [
-    { label: 'تنظیمات بازی ⚙️', page: Page.SETUP }, // Game Setup
-    { label: 'قوانین 📜', page: Page.RULES },       // Rules
-    { label: 'سوالات متداول ❓', page: Page.FAQ },   // FAQ
+    { label: 'تنظیمات بازی ⚙️', page: Page.SETUP },       // Game Setup
+    { label: 'فهرست کلمات 📖', page: Page.WORD_LIST }, // Word List
+    { label: 'قوانین 📜', page: Page.RULES },             // Rules
+    { label: 'سوالات متداول ❓', page: Page.FAQ },         // FAQ
   ];
 
   return (
@@ -20,10 +21,11 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage }) =
         <h1 
           className="text-2xl font-bold text-sky-400 cursor-pointer"
           onClick={() => setCurrentPage(Page.SETUP)}
+          aria-label="بازگشت به تنظیمات بازی" // Go back to game setup
         >
           {APP_TITLE}
         </h1>
-        <nav>
+        <nav aria-label="منوی اصلی"> {/* Main menu */}
           <ul className="flex space-x-4 rtl:space-x-reverse"> {/* Added rtl:space-x-reverse for RTL */}
             {navItems.map(item => (
               <li key={item.page}>
@@ -34,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage }) =
                       ? 'bg-sky-500 text-white' 
                       : 'text-slate-300 hover:bg-slate-700 hover:text-white'
                     }`}
+                  aria-current={currentPage === item.page ? 'page' : undefined}
                 >
                   {item.label}
                 </button>
